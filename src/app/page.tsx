@@ -1,5 +1,5 @@
 // src/app/page.js
-"use client"; // This makes it a Client Component (needed for interactivity)
+"use client";
 
 import { useState } from "react";
 
@@ -8,34 +8,53 @@ export default function Home() {
   const [albums, setAlbums] = useState([]);
   const [collage, setCollage] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [dimensions, setDimensions] = useState("10x10"); // Default 10x10
+  const [width, setWidth] = useState(10);
+  const [height, setHeight] = useState(10);
 
-  // Available dimension options
-  const dimensionOptions = [
-    { value: "4x4", label: "4×4 (16 albums)", count: 16 },
-    { value: "5x5", label: "5×5 (25 albums)", count: 25 },
-    { value: "6x6", label: "6×6 (36 albums)", count: 36 },
-    { value: "7x7", label: "7×7 (49 albums)", count: 49 },
-    { value: "8x8", label: "8×8 (64 albums)", count: 64 },
-    { value: "9x9", label: "9×9 (81 albums)", count: 81 },
-    { value: "10x10", label: "10×10 (100 albums)", count: 100 },
-    { value: "11x11", label: "11×11 (121 albums)", count: 121 },
-    { value: "12x12", label: "12×12 (144 albums)", count: 144 },
-    { value: "13x13", label: "13×13 (169 albums)", count: 169 },
-    { value: "14x14", label: "14×14 (196 albums)", count: 196 },
-    { value: "15x15", label: "15×15 (225 albums)", count: 225 },
-    { value: "16x16", label: "16×16 (256 albums)", count: 256 },
-    { value: "20x20", label: "20x20 (400 albums)", count: 400 },
-  ];
+  const handleWidthChange = (e) => {
+    const value = e.target.value;
+    if (value === "") {
+      setWidth(""); // Allow empty string
+    } else {
+      const numValue = parseInt(value);
+      if (!isNaN(numValue)) {
+        setWidth(numValue);
+      }
+    }
+  };
+
+  const handleHeightChange = (e) => {
+    const value = e.target.value;
+    if (value === "") {
+      setHeight(""); // Allow empty string
+    } else {
+      const numValue = parseInt(value);
+      if (!isNaN(numValue)) {
+        setHeight(numValue);
+      }
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!user) return;
 
-    const selectedOption = dimensionOptions.find(
-      (opt) => opt.value === dimensions
-    );
-    const albumCount = selectedOption.count;
+    // Convert empty strings to 1 and validate
+    const finalWidth = width === "" ? 1 : width;
+    const finalHeight = height === "" ? 1 : height;
+
+    if (
+      finalWidth < 1 ||
+      finalWidth > 20 ||
+      finalHeight < 1 ||
+      finalHeight > 20
+    ) {
+      alert("Width and height must be between 1 and 20");
+      return;
+    }
+
+    const albumCount = finalWidth * finalHeight;
+    const dimensions = `${finalWidth}x${finalHeight}`;
 
     setLoading(true);
     try {
@@ -78,9 +97,7 @@ export default function Home() {
     }
   };
 
-  const selectedOption = dimensionOptions.find(
-    (opt) => opt.value === dimensions
-  );
+  const albumCount = (width === "" ? 1 : width) * (height === "" ? 1 : height);
 
   return (
     <main className="p-8 max-w-5xl mx-auto">
@@ -100,51 +117,68 @@ export default function Home() {
           />
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-grow">
-            <label
-              htmlFor="dimensions"
-              className="block text-sm font-medium text-gray-700 mb-2"
-            >
-              Collage Dimensions
-            </label>
-            <select
-              id="dimensions"
-              value={dimensions}
-              onChange={(e) => setDimensions(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {dimensionOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+        <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
+          <div className="flex gap-4 flex-grow">
+            <div className="flex-1">
+              <label
+                htmlFor="width"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                Width
+              </label>
+              <input
+                id="width"
+                type="number"
+                min="1"
+                max="20"
+                value={width}
+                onChange={handleWidthChange}
+                className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">Max: 25</p>
+            </div>
+
+            <div className="flex-1">
+              <label
+                htmlFor="height"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                Height
+              </label>
+              <input
+                id="height"
+                type="number"
+                min="1"
+                max="20"
+                value={height}
+                onChange={handleHeightChange}
+                className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">Max: 25</p>
+            </div>
           </div>
 
-          <div className="flex items-end">
+          <div className="flex-shrink-0 align-middle">
             <button
               type="submit"
               disabled={loading}
-              className="bg-blue-600 text-white px-6 py-3 rounded font-medium hover:bg-blue-700 transition disabled:bg-blue-400 whitespace-nowrap"
+              className="bg-blue-600 text-white px-6 py-3 rounded font-medium hover:bg-blue-700 transition disabled:bg-blue-400 whitespace-nowrap align-middle"
             >
               {loading ? "Loading..." : "Generate Collage"}
             </button>
+            <p className="text-xs text-gray-500 mt-1">&nbsp;</p>
           </div>
         </div>
 
-        {selectedOption && (
-          <p className="text-sm text-gray-600">
-            This will create a {selectedOption.label.split(" ")[0]} grid using
-            your top {selectedOption.count} albums.
-          </p>
-        )}
+        <p className="text-sm text-gray-600">
+          This will create a {width === "" ? 1 : width}×
+          {height === "" ? 1 : height} grid using your top {albumCount} albums.
+        </p>
       </form>
 
-      {/* Results */}
       {loading && (
         <div className="text-center">
-          <p>Fetching your top {selectedOption?.count} albums...</p>
+          <p>Fetching your top {albumCount} albums...</p>
           <p className="text-sm text-gray-500 mt-1">
             This may take a moment...
           </p>
@@ -167,11 +201,10 @@ export default function Home() {
             {albums.map((album, index) => (
               <div key={index} className="text-center">
                 <img
-                  src={album.coverUrl || "/placeholder-album.png"} // Fallback to placeholder
+                  src={album.coverUrl || "/placeholder-album.png"}
                   alt={`${album.name} cover`}
                   className="w-full aspect-square object-cover rounded shadow"
                   onError={(e) => {
-                    // If image fails to load, hide it or use a placeholder
                     e.target.style.display = "none";
                   }}
                 />
@@ -190,7 +223,8 @@ export default function Home() {
       {collage && (
         <div className="mt-12">
           <h2 className="text-xl font-semibold mb-4">
-            Your {dimensions.replace("x", "x")} Color Sorted Collage
+            Your {width === "" ? 1 : width}×{height === "" ? 1 : height} Color
+            Sorted Collage
           </h2>
           <div className="flex justify-center">
             <img
@@ -203,7 +237,9 @@ export default function Home() {
           <div className="mt-4 text-center">
             <a
               href={collage}
-              download={`${user}-${dimensions}-album-collage.jpg`}
+              download={`${user}-${width === "" ? 1 : width}x${
+                height === "" ? 1 : height
+              }-album-collage.jpg`}
               className="inline-block bg-green-600 text-white px-6 py-2 rounded font-medium hover:bg-green-700 transition"
             >
               Download Collage

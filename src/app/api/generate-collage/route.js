@@ -23,7 +23,7 @@ async function getAverageColor(buffer) {
 
     const { data } = await sharp(buffer)
       .resize(1, 1)
-      .removeAlpha() // Remove transparency (was causing issues)
+      .removeAlpha() 
       .raw()
       .toBuffer({ resolveWithObject: true });
 
@@ -34,7 +34,7 @@ async function getAverageColor(buffer) {
     return { r: data[0], g: data[1], b: data[2] };
   } catch (err) {
     console.warn("Color extraction failed:", err.message);
-    return { r: 100, g: 100, b: 100 }; // Fallback gray
+    return { r: 0, g: 0, b: 0 }; // Fallback black
   }
 }
 
@@ -118,9 +118,9 @@ export async function POST(request) {
 
       try {
         // Validate URL
-        if (!coverUrl || typeof coverUrl !== "string" || coverUrl.trim() === "") {
-        console.warn(`Invalid or empty cover URL for: ${album.name}`);
-        throw new Error("No cover URL available");
+        if (!coverUrl || typeof coverUrl !== "string") {
+          console.warn(`Invalid cover URL: ${album.name}`);
+          continue;
         }
 
         // Fetch image with better headers
@@ -140,7 +140,7 @@ export async function POST(request) {
           throw new Error("Placeholder image");
         }
 
-        // Resize and clean up image - ensure consistent format
+        // Resize and clean up image 
         let resizedBuffer;
         try {
           resizedBuffer = await sharp(buffer)
@@ -174,14 +174,14 @@ export async function POST(request) {
       } catch (err) {
         console.warn(`Failed to process album: ${album.name}`, err.message);
 
-        // Create fallback gray image
+        // Create fallback black image
         try {
           const fallback = await sharp({
             create: {
               width: size,
               height: size,
               channels: 3,
-              background: { r: 100, g: 100, b: 100 },
+              background: { r: 0, g: 0, b: 0 },
             },
           })
             .jpeg({ quality: 90 })
@@ -189,7 +189,7 @@ export async function POST(request) {
 
           processedAlbums.push({
             buffer: fallback,
-            color: { r: 100, g: 100, b: 100 },
+            color: { r: 0, g: 0, b: 0 },
             name: album.name || 'fallback'
           });
         } catch (fallbackErr) {
@@ -206,7 +206,7 @@ export async function POST(request) {
             width: size,
             height: size,
             channels: 3,
-            background: { r: 50, g: 50, b: 50 },
+            background: { r: 0, g: 0, b: 0 },
           },
         })
           .jpeg({ quality: 90 })
@@ -214,7 +214,7 @@ export async function POST(request) {
 
         processedAlbums.push({
           buffer: fallback,
-          color: { r: 50, g: 50, b: 50 },
+          color: { r: 0, g: 0, b: 0 },
           name: 'empty-slot'
         });
       } catch (fallbackErr) {
@@ -228,25 +228,6 @@ export async function POST(request) {
       return Response.json({ error: "No valid album covers to process" }, { status: 500 });
     }
 
-    // // Sort by hue (creates rainbow gradient)
-    // processedAlbums.sort((a, b) => {
-    //   const hsv1 = rgbToHsv(a.color.r, a.color.g, a.color.b);
-    //   const hsv2 = rgbToHsv(b.color.r, b.color.g, b.color.b);
-    //   return hsv1.h - hsv2.h;
-    // });
-
-        // processedAlbums.sort((a, b) => {
-        // const temp1 = (a.color.r + a.color.g) - (a.color.b * 2);
-        // const temp2 = (b.color.r + b.color.g) - (b.color.b * 2);
-        // return temp1 - temp2;
-        // });
-
-    // Sort by perceived brightness
-// processedAlbums.sort((a, b) => {
-//   const brightness1 = 0.299 * a.color.r + 0.587 * a.color.g + 0.114 * a.color.b;
-//   const brightness2 = 0.299 * b.color.r + 0.587 * b.color.g + 0.114 * b.color.b;
-//   return brightness1 - brightness2;
-// });
 
 // Group albums by temperature, then sort by hue within each group
             const coolAlbums = [];
@@ -285,47 +266,12 @@ export async function POST(request) {
             return hsv1.h - hsv2.h;
             });
 
-            // Combine groups: cool → monochrome → warm
-            const sortedAlbums = [...warmAlbums, ...coolAlbums, ...monochromeAlbums];
+            // Combine groups
+            const sortedAlbums = [...warmAlbums, ...coolAlbums, ...monochromeAlbums,];
 
             console.log(`Color distribution: ${coolAlbums.length} cool, ${monochromeAlbums.length} monochrome, ${warmAlbums.length} warm`);
 
 
-//////////////////////
-
-
-
-    // // Create composite array with additional validation
-    // const composite = [];
-    // for (let i = 0; i < Math.min(sortedAlbums.length, totalSlots); i++) {
-    //   const img = sortedAlbums[i];
-    //   try {
-    //     // Validate the buffer one more time before adding to composite
-    //     if (!Buffer.isBuffer(img.buffer) || img.buffer.length === 0) {
-    //       console.warn(`Invalid buffer for ${img.name}, skipping`);
-    //       continue;
-    //     }
-
-    //     // Test that Sharp can actually process this buffer
-    //     const metadata = await sharp(img.buffer).metadata();
-    //     if (!metadata.width || !metadata.height) {
-    //       console.warn(`Invalid image metadata for ${img.name}, skipping`);
-    //       continue;
-    //     }
-
-    //     composite.push({
-    //       input: img.buffer,
-    //       left: (i % cols) * size,
-    //       top: Math.floor(i / cols) * size,
-    //     });
-        
-    //   } catch (e) {
-    //     console.warn(`Failed validation for ${img.name}:`, e.message);
-    //     continue; // Skip invalid
-    //   }
-    // }
-
-// Generate diagonal positioning array
 const diagonalPositions = [];
 for (let sum = 0; sum < cols + rows - 1; sum++) {
   for (let col = 0; col < cols; col++) {
@@ -349,7 +295,7 @@ for (let i = 0; i < Math.min(sortedAlbums.length, totalSlots, diagonalPositions.
       continue;
     }
 
-    // Test that Sharp can actually process this buffer
+    // Test that sharp can actually process this buffer
     const metadata = await sharp(img.buffer).metadata();
     if (!metadata.width || !metadata.height) {
       console.warn(`Invalid image metadata for ${img.name}, skipping`);
@@ -370,7 +316,6 @@ for (let i = 0; i < Math.min(sortedAlbums.length, totalSlots, diagonalPositions.
 
 
 
-
     console.log(`✅ Using ${composite.length} fully validated images in ${dimensions} composite`);
 
     if (composite.length === 0) {
@@ -380,7 +325,7 @@ for (let i = 0; i < Math.min(sortedAlbums.length, totalSlots, diagonalPositions.
       );
     }
 
-    // Generate final image with better error handling
+    // Generate final image
     let finalImage;
     try {
       // Create the base canvas
@@ -396,7 +341,7 @@ for (let i = 0; i < Math.min(sortedAlbums.length, totalSlots, diagonalPositions.
       // Apply composite operation
       finalImage = await canvas
         .composite(composite)
-        .jpeg({ quality: 95 }) // Use JPEG for final output too
+        .jpeg({ quality: 95 })
         .toBuffer();
         
     } catch (compositeErr) {
