@@ -3,45 +3,51 @@
 
 import { useState } from "react";
 
-export default function Home() {
-  const [user, setUser] = useState("");
-  const [albums, setAlbums] = useState([]);
-  const [collage, setCollage] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [width, setWidth] = useState(10);
-  const [height, setHeight] = useState(10);
+interface Album {
+  name: string;
+  artist: string;
+  coverUrl: string;
+}
 
-  const handleWidthChange = (e) => {
+export default function Home() {
+  const [user, setUser] = useState<string>("");
+  const [albums, setAlbums] = useState<Album[]>([]);
+  const [collage, setCollage] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [width, setWidth] = useState<number | string>(10);
+  const [height, setHeight] = useState<number | string>(10);
+
+  const handleWidthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value === "") {
       setWidth(""); // Allow empty string
     } else {
-      const numValue = parseInt(value);
+      const numValue = parseInt(value, 10);
       if (!isNaN(numValue)) {
         setWidth(numValue);
       }
     }
   };
 
-  const handleHeightChange = (e) => {
+  const handleHeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value === "") {
       setHeight(""); // Allow empty string
     } else {
-      const numValue = parseInt(value);
+      const numValue = parseInt(value, 10);
       if (!isNaN(numValue)) {
         setHeight(numValue);
       }
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user) return;
 
     // Convert empty strings to 1 and validate
-    const finalWidth = width === "" ? 1 : width;
-    const finalHeight = height === "" ? 1 : height;
+    const finalWidth = width === "" ? 1 : Number(width);
+    const finalHeight = height === "" ? 1 : Number(height);
 
     if (
       finalWidth < 1 ||
@@ -97,7 +103,8 @@ export default function Home() {
     }
   };
 
-  const albumCount = (width === "" ? 1 : width) * (height === "" ? 1 : height);
+  const albumCount =
+    (width === "" ? 1 : Number(width)) * (height === "" ? 1 : Number(height));
 
   return (
     <main className="p-8 max-w-5xl mx-auto">
@@ -111,7 +118,9 @@ export default function Home() {
           <input
             type="text"
             value={user}
-            onChange={(e) => setUser(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setUser(e.target.value)
+            }
             placeholder="Enter your Last.fm username"
             className="flex-grow p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
@@ -135,7 +144,7 @@ export default function Home() {
                 onChange={handleWidthChange}
                 className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <p className="text-xs text-gray-500 mt-1">Max: 25</p>
+              <p className="text-xs text-gray-500 mt-1">Max: 20</p>
             </div>
 
             <div className="flex-1">
@@ -154,15 +163,15 @@ export default function Home() {
                 onChange={handleHeightChange}
                 className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <p className="text-xs text-gray-500 mt-1">Max: 25</p>
+              <p className="text-xs text-gray-500 mt-1">Max: 20</p>
             </div>
           </div>
 
-          <div className="flex-shrink-0 align-middle">
+          <div className="flex-shrink-0">
             <button
               type="submit"
               disabled={loading}
-              className="bg-blue-600 text-white px-6 py-3 rounded font-medium hover:bg-blue-700 transition disabled:bg-blue-400 whitespace-nowrap align-middle"
+              className="bg-blue-600 text-white px-6 py-3 rounded font-medium hover:bg-blue-700 transition disabled:bg-blue-400 whitespace-nowrap"
             >
               {loading ? "Loading..." : "Generate Collage"}
             </button>
@@ -171,8 +180,9 @@ export default function Home() {
         </div>
 
         <p className="text-sm text-gray-600">
-          This will create a {width === "" ? 1 : width}×
-          {height === "" ? 1 : height} grid using your top {albumCount} albums.
+          This will create a {width === "" ? 1 : Number(width)}×
+          {height === "" ? 1 : Number(height)} grid using your top {albumCount}{" "}
+          albums.
         </p>
       </form>
 
@@ -185,7 +195,7 @@ export default function Home() {
         </div>
       )}
 
-      {!loading && albums.length === 0 && !loading && (
+      {!loading && albums.length === 0 && (
         <p className="text-gray-500 text-center">
           Enter your Last.fm username and select your preferred dimensions to
           generate your album collage.
@@ -195,7 +205,7 @@ export default function Home() {
       {albums.length > 0 && (
         <div className="mt-6">
           <h2 className="text-xl font-semibold mb-4">
-            Top {albums.length} Albums for "{user}"
+            Top {albums.length} Albums for &quot;{user}&quot;
           </h2>
           <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3 max-h-96 overflow-y-auto border rounded p-4">
             {albums.map((album, index) => (
@@ -204,8 +214,11 @@ export default function Home() {
                   src={album.coverUrl || "/placeholder-album.png"}
                   alt={`${album.name} cover`}
                   className="w-full aspect-square object-cover rounded shadow"
-                  onError={(e) => {
-                    e.target.style.display = "none";
+                  onError={(
+                    e: React.SyntheticEvent<HTMLImageElement, Event>
+                  ) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = "none";
                   }}
                 />
                 <p
@@ -223,8 +236,8 @@ export default function Home() {
       {collage && (
         <div className="mt-12">
           <h2 className="text-xl font-semibold mb-4">
-            Your {width === "" ? 1 : width}×{height === "" ? 1 : height} Color
-            Sorted Collage
+            Your {width === "" ? 1 : Number(width)}×
+            {height === "" ? 1 : Number(height)} Color Sorted Collage
           </h2>
           <div className="flex justify-center">
             <img
@@ -237,8 +250,8 @@ export default function Home() {
           <div className="mt-4 text-center">
             <a
               href={collage}
-              download={`${user}-${width === "" ? 1 : width}x${
-                height === "" ? 1 : height
+              download={`${user}-${width === "" ? 1 : Number(width)}x${
+                height === "" ? 1 : Number(height)
               }-album-collage.jpg`}
               className="inline-block bg-green-600 text-white px-6 py-2 rounded font-medium hover:bg-green-700 transition"
             >
