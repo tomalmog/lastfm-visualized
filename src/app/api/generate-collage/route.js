@@ -7,29 +7,16 @@ function isValidBuffer(buffer) {
   return Buffer.isBuffer(buffer) && buffer.length > 100;
 }
 
-function isValidPngBuffer(buffer) {
-  if (!Buffer.isBuffer(buffer) || buffer.length < 8) return false;
-  const signature = buffer.slice(0, 8);
-  const pngHeader = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-  return pngHeader.every((b, i) => b === signature[i]);
-}
-
 // Extract average color by resizing to 1x1
 async function getAverageColor(buffer) {
   try {
-    if (!Buffer.isBuffer(buffer)) {
-      throw new Error("Not a buffer");
-    }
-
     const { data } = await sharp(buffer)
       .resize(1, 1)
-      .removeAlpha() 
+      .removeAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true });
 
-    if (!data || data.length < 3) {
-      throw new Error("No pixel data");
-    }
+    if (!data || data.length < 3) throw new Error("No pixel data");
 
     return { r: data[0], g: data[1], b: data[2] };
   } catch (err) {
@@ -38,57 +25,105 @@ async function getAverageColor(buffer) {
   }
 }
 
-// RGB to HSV for sorting by hue
 function rgbToHsv(r, g, b) {
   r /= 255; g /= 255; b /= 255;
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
-  let h, s, v = max;
-  const d = max - min;
-  s = max === 0 ? 0 : d / max;
+  let h, s = max === 0 ? 0 : (max - min) / max;
   if (max === min) h = 0;
   else {
-    h =
-      max === r ? (g - b) / d + (g < b ? 6 : 0) :
-      max === g ? (b - r) / d + 2 :
-      (r - g) / d + 4;
+    h = max === r ? (g - b) / (max - min) + (g < b ? 6 : 0)
+      : max === g ? (b - r) / (max - min) + 2
+      : (r - g) / (max - min) + 4;
     h /= 6;
   }
-  return { h, s, v };
+  return { h, s, v: max };
 }
 
-// Parse dimensions string (e.g., "10x10" -> { cols: 10, rows: 10 })
 function parseDimensions(dimensionsStr) {
   const [cols, rows] = dimensionsStr.split('x').map(Number);
   return { cols, rows };
 }
 
-// Determine color temperature group
 function getTemperatureGroup(r, g, b) {
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
   const saturation = max === 0 ? 0 : (max - min) / max;
-  
-  // If it's very unsaturated (grayscale-ish), it's monochrome
-  if (saturation < 0.3) {
-    return 'monochrome';
+
+  if (saturation < 0.3) return 'monochrome';
+
+  const hue = rgbToHsv(r, g, b).h * 360;
+  return hue >= 120 && hue <= 240 ? 'cool' : 'warm';
+}
+
+// iTunes fallback cover fetch
+async function getFallbackCover(album, artist) {
+  const search = encodeURIComponent(`${artist} ${album}`);
+  const url = `https://itunes.apple.com/search?term=${search}&media=music&entity=album&limit=1`;
+
+  try {
+    const res = await axios.get(url);
+    const result = res.data?.results?.[0];
+    if (result?.artworkUrl100) {
+      return result.artworkUrl100.replace("100x100bb", "600x600bb");
+    }
+  } catch {}
+  return null;
+}
+
+async function fetchCoverFromMusicBrainz(albumName, artistName) {
+  try {
+    // Step 1: Search MusicBrainz for the release
+    const query = encodeURIComponent(`${artistName} ${albumName}`);
+    const searchUrl = `https://musicbrainz.org/ws/2/release?query=${query}&limit=1&fmt=json`;
+    
+    const searchRes = await axios.get(searchUrl, {
+      headers: { 'User-Agent': 'LastFM-Collage-Generator/1.0' }
+    });
+
+    const releases = searchRes.data?.releases;
+    if (!releases || releases.length === 0) return null;
+
+    const mbid = releases[0].id; // MusicBrainz ID
+
+    // get cover from Cover Art Archive
+    const coverUrl = `https://coverartarchive.org/release/${mbid}/front-600.jpg`;
+
+    // Test if cover exists
+    const headRes = await axios.head(coverUrl);
+    if (headRes.status === 200) {
+      return coverUrl;
+    }
+  } catch (err) {
+    console.warn(`MusicBrainz lookup failed for ${albumName}:`, err.message);
   }
-  
-  // Calculate color temperature
-  // Cool colors: blues, cyans, some greens
-  // Warm colors: reds, oranges, yellows, magentas
-  const hsv = rgbToHsv(r, g, b);
-  const hue = hsv.h * 360; // Convert to degrees
-  
-  // Cool: 120-240 degrees (green through blue to purple)
-  if (hue >= 120 && hue <= 240) {
-    return 'cool';
-  }
-  // Warm: everything else (red, orange, yellow, magenta)
-  else {
-    return 'warm';
+  return null;
+}
+
+async function fetchAlbumImagesFromLastFM(artist, albumName) {
+  try {
+    const url = `https://ws.audioscrobbler.com/2.0/?method=album.getImages&artist=${encodeURIComponent(artist)}&album=${encodeURIComponent(albumName)}&api_key=${process.env.LASTFM_API_KEY}&format=json`;
+
+    const res = await axios.get(url);
+    const images = res.data?.images?.image;
+
+    if (!Array.isArray(images)) return null;
+
+    // Filter for valid urls
+    for (const img of images) {
+      const imgUrl = img?.sizes?.size?.find(s => s.size === 'large')?.['#text'] || img['#text'];
+      if (!imgUrl) continue;
+      if (imgUrl.includes('2a96cbd8b46e442fc41c2b86b821562f')) continue; // Skip placeholder
+      return imgUrl; // Return first valid image
+    }
+
+    return null;
+  } catch (err) {
+    console.warn(`Failed to fetch additional images for ${albumName}:`, err.message);
+    return null;
   }
 }
+
 
 export async function POST(request) {
   try {
@@ -98,275 +133,218 @@ export async function POST(request) {
       return Response.json({ error: "No albums provided" }, { status: 400 });
     }
 
-    // Parse dimensions
     const { cols, rows } = parseDimensions(dimensions);
     const totalSlots = cols * rows;
-    const size = 100; // Size of each album cover
+    const size = 100;
     const width = cols * size;
     const height = rows * size;
 
-    console.log(`Creating ${dimensions} collage (${totalSlots} slots) with ${albums.length} albums`);
+    console.log(`Creating ${dimensions} collage for ${albums.length} albums`);
 
-    const processedAlbums = [];
+    // Process album covers in parallel
+    const results = await Promise.allSettled(albums.slice(0, totalSlots).map(async (album, index) => {
+      let url = album.coverUrl;
 
-    // Process each album (up to the number of slots available)
-    for (let i = 0; i < Math.min(albums.length, totalSlots); i++) {
-      const album = albums[i];
-      const coverUrl = album.coverUrl;
-
-      console.log(`Processing ${i + 1}/${Math.min(albums.length, totalSlots)}: ${album.name} - ${coverUrl}`);
-
-      try {
-        // Validate URL
-        if (!coverUrl || typeof coverUrl !== "string") {
-          console.warn(`Invalid cover URL: ${album.name}`);
-          continue;
-        }
-
-        // Fetch image with better headers
-        const imgRes = await axios.get(coverUrl, {
-          responseType: "arraybuffer",
-          timeout: 10000,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-          }
-        });
-
-        const buffer = Buffer.from(imgRes.data);
-
-        // Skip tiny/placeholder images
-        if (buffer.length < 100) {
-          console.warn(`Image too small (likely placeholder): ${album.name}`);
-          throw new Error("Placeholder image");
-        }
-
-        // Resize and clean up image 
-        let resizedBuffer;
-        try {
-          resizedBuffer = await sharp(buffer)
-            .resize(size, size, { 
-              fit: 'cover',
-              position: 'center'
-            })
-            .removeAlpha() // Remove transparency
-            .jpeg({ quality: 90 }) // Use JPEG instead of PNG for better compatibility
-            .toBuffer();
-        } catch (resizeErr) {
-          console.warn(`Resize failed for ${album.name}:`, resizeErr.message);
-          throw resizeErr;
-        }
-
-        // Validate resized buffer
-        if (!isValidBuffer(resizedBuffer)) {
-          console.warn(`Invalid resized buffer for ${album.name}`);
-          throw new Error("Invalid image after resize");
-        }
-
-        // Extract color from original buffer (before resize for better accuracy)
-        const color = await getAverageColor(buffer);
-
-        processedAlbums.push({
-          buffer: resizedBuffer,
-          color,
-          name: album.name // Keep name for debugging
-        });
-        
-      } catch (err) {
-        console.warn(`Failed to process album: ${album.name}`, err.message);
-
-        // Create fallback black image
-        try {
-          const fallback = await sharp({
-            create: {
-              width: size,
-              height: size,
-              channels: 3,
-              background: { r: 0, g: 0, b: 0 },
-            },
-          })
-            .jpeg({ quality: 90 })
-            .toBuffer();
-
-          processedAlbums.push({
-            buffer: fallback,
-            color: { r: 0, g: 0, b: 0 },
-            name: album.name || 'fallback'
-          });
-        } catch (fallbackErr) {
-          console.error("Failed to create fallback image", fallbackErr);
-        }
+      // Skip known placeholder URLs
+      if (
+        !url ||
+        typeof url !== "string" ||
+        url.includes('2a96cbd8b46e442fc41c2b86b821562f') ||
+        url === ''
+      ) {
+        console.warn(`Skipping placeholder image: ${album.name}`);
+        url = await getFallbackCover(album.name, album.artist || "");
       }
-    }
 
-    // If we don't have enough albums to fill the grid, create more fallback images
-    while (processedAlbums.length < totalSlots) {
+      if (!url) {
+        throw new Error("No cover URL found");
+      }
+
       try {
-        const fallback = await sharp({
-          create: {
-            width: size,
-            height: size,
-            channels: 3,
-            background: { r: 0, g: 0, b: 0 },
-          },
-        })
+        let buffer = null;
+let finalCoverUrl = null;
+
+const originalUrl = album.coverUrl;
+
+// 1. Try Last.fm 300x300 version
+if (originalUrl) {
+  const largeUrl = originalUrl.replace(/\/i\/u\/\d+[s]?\/(.*)$/, '/i/u/300x300/$1');
+  try {
+    const res = await axios.get(largeUrl, { 
+      responseType: 'arraybuffer', 
+      timeout: 10000,
+      validateStatus: s => s === 200,
+      headers: { 'User-Agent': 'Mozilla/5.0' }
+    });
+    if (res.data?.length > 100) {
+      buffer = Buffer.from(res.data);
+      finalCoverUrl = largeUrl;
+    }
+  } catch (err) {
+    console.warn(`300x300 failed for ${album.name}`);
+  }
+}
+
+// 2. If that fails, try MusicBrainz
+if (!buffer) {
+  const mbUrl = await fetchCoverFromMusicBrainz(album.name, album.artist);
+  if (mbUrl) {
+    try {
+      const res = await axios.get(mbUrl, { 
+        responseType: 'arraybuffer', 
+        timeout: 10000,
+        validateStatus: s => s === 200,
+        headers: { 'User-Agent': 'Mozilla/5.0' }
+      });
+      if (res.data?.length > 100) {
+        buffer = Buffer.from(res.data);
+        finalCoverUrl = mbUrl;
+      }
+    } catch (err) {
+      console.warn(`MusicBrainz cover failed for ${album.name}`);
+    }
+  }
+}
+
+// 3. If still no image, use black fallback
+if (!buffer) {
+
+  const fallback = await sharp({ 
+    create: { width: size, height: size, channels: 3, background: { r: 0, g: 0, b: 0 } } 
+  }).jpeg({ quality: 90 }).toBuffer();
+  processedAlbums.push({
+    buffer: fallback,
+    color: { r: 0, g: 0, b: 0 },
+    name: album.name
+  });
+}
+
+        const resized = await sharp(buffer)
+          .resize(size, size, { 
+            fit: 'cover',
+            position: 'center'
+          })
+          .removeAlpha()
           .jpeg({ quality: 90 })
           .toBuffer();
 
-        processedAlbums.push({
-          buffer: fallback,
-          color: { r: 0, g: 0, b: 0 },
-          name: 'empty-slot'
-        });
-      } catch (fallbackErr) {
-        console.error("Failed to create empty slot fallback", fallbackErr);
-        break;
+        const color = await getAverageColor(buffer);
+
+        return {
+          buffer: resized,
+          color,
+          name: album.name
+        };
+      } catch (err) {
+        console.error(`Failed to fetch or process image for ${album.name}:`, err.message);
+        throw err;
+      }
+    }));
+
+    // Build processed list and replace failures with fallback
+    const processed = await Promise.all(results.map(async (res, idx) => {
+      if (res.status === "fulfilled") return res.value;
+
+      console.warn(`Album ${albums[idx].name} failed: ${res.reason}`);
+
+      const fallback = await sharp({
+        create: {
+          width: size,
+          height: size,
+          channels: 3,
+          background: { r: 0, g: 0, b: 0 }
+        }
+      }).jpeg({ quality: 90 }).toBuffer();
+
+      return {
+        buffer: fallback,
+        color: { r: 0, g: 0, b: 0 },
+        name: albums[idx].name || "fallback"
+      };
+    }));
+
+    // Fill empty slots
+    while (processed.length < totalSlots) {
+      const fallback = await sharp({
+        create: {
+          width: size,
+          height: size,
+          channels: 3,
+          background: { r: 0, g: 0, b: 0 }
+        }
+      }).jpeg({ quality: 90 }).toBuffer();
+
+      processed.push({ buffer: fallback, color: { r: 0, g: 0, b: 0 }, name: "empty-slot" });
+    }
+
+    // Group and sort
+    const cool = [], warm = [], mono = [];
+    for (const album of processed) {
+      const group = getTemperatureGroup(album.color.r, album.color.g, album.color.b);
+      if (group === "cool") cool.push(album);
+      else if (group === "monochrome") mono.push(album);
+      else warm.push(album);
+    }
+
+    const byHue = list => list.sort((a, b) => rgbToHsv(a.color.r, a.color.g, a.color.b).h - rgbToHsv(b.color.r, b.color.g, b.color.b).h);
+    const byBrightness = list => list.sort((a, b) =>
+      (0.299 * a.color.r + 0.587 * a.color.g + 0.114 * a.color.b) -
+      (0.299 * b.color.r + 0.587 * b.color.g + 0.114 * b.color.b));
+
+    const sorted = [...byHue(warm), ...byHue(cool), ...byBrightness(mono)];
+
+    const diagonalPositions = [];
+    for (let sum = 0; sum < cols + rows - 1; sum++) {
+      for (let col = 0; col < cols; col++) {
+        const row = sum - col;
+        if (row >= 0 && row < rows) {
+          diagonalPositions.push({ col, row });
+        }
       }
     }
 
-    // If no valid albums
-    if (processedAlbums.length === 0) {
-      return Response.json({ error: "No valid album covers to process" }, { status: 500 });
+    const composite = [];
+    for (let i = 0; i < Math.min(sorted.length, totalSlots, diagonalPositions.length); i++) {
+      const img = sorted[i];
+      const pos = diagonalPositions[i];
+
+      try {
+        const meta = await sharp(img.buffer).metadata();
+        if (!meta.width || !meta.height) continue;
+
+        composite.push({
+          input: img.buffer,
+          left: pos.col * size,
+          top: pos.row * size
+        });
+      } catch {}
     }
 
-
-// Group albums by temperature, then sort by hue within each group
-            const coolAlbums = [];
-            const monochromeAlbums = [];
-            const warmAlbums = [];
-
-            // Separate into temperature groups
-            processedAlbums.forEach(album => {
-            const tempGroup = getTemperatureGroup(album.color.r, album.color.g, album.color.b);
-            if (tempGroup === 'cool') {
-                coolAlbums.push(album);
-            } else if (tempGroup === 'monochrome') {
-                monochromeAlbums.push(album);
-            } else {
-                warmAlbums.push(album);
-            }
-            });
-
-            // Sort each group by hue
-            coolAlbums.sort((a, b) => {
-            const hsv1 = rgbToHsv(a.color.r, a.color.g, a.color.b);
-            const hsv2 = rgbToHsv(b.color.r, b.color.g, b.color.b);
-            return hsv1.h - hsv2.h;
-            });
-
-            monochromeAlbums.sort((a, b) => {
-            // Sort monochrome by brightness (dark to light)
-            const brightness1 = 0.299 * a.color.r + 0.587 * a.color.g + 0.114 * a.color.b;
-            const brightness2 = 0.299 * b.color.r + 0.587 * b.color.g + 0.114 * b.color.b;
-            return brightness1 - brightness2;
-            });
-
-            warmAlbums.sort((a, b) => {
-            const hsv1 = rgbToHsv(a.color.r, a.color.g, a.color.b);
-            const hsv2 = rgbToHsv(b.color.r, b.color.g, b.color.b);
-            return hsv1.h - hsv2.h;
-            });
-
-            // Combine groups
-            const sortedAlbums = [...warmAlbums, ...coolAlbums, ...monochromeAlbums,];
-
-            console.log(`Color distribution: ${coolAlbums.length} cool, ${monochromeAlbums.length} monochrome, ${warmAlbums.length} warm`);
-
-
-const diagonalPositions = [];
-for (let sum = 0; sum < cols + rows - 1; sum++) {
-  for (let col = 0; col < cols; col++) {
-    const row = sum - col;
-    if (row >= 0 && row < rows) {
-      diagonalPositions.push({ col, row });
-    }
-  }
-}
-
-// Create composite array with diagonal positioning
-const composite = [];
-for (let i = 0; i < Math.min(sortedAlbums.length, totalSlots, diagonalPositions.length); i++) {
-  const img = sortedAlbums[i];
-  const pos = diagonalPositions[i];
-  
-  try {
-    // Validate the buffer one more time before adding to composite
-    if (!Buffer.isBuffer(img.buffer) || img.buffer.length === 0) {
-      console.warn(`Invalid buffer for ${img.name}, skipping`);
-      continue;
+    if (!composite.length) {
+      return Response.json({ error: "No valid images after processing" }, { status: 500 });
     }
 
-    // Test that sharp can actually process this buffer
-    const metadata = await sharp(img.buffer).metadata();
-    if (!metadata.width || !metadata.height) {
-      console.warn(`Invalid image metadata for ${img.name}, skipping`);
-      continue;
-    }
+    const finalImage = await sharp({
+      create: {
+        width,
+        height,
+        channels: 3,
+        background: { r: 10, g: 10, b: 10 }
+      }
+    }).composite(composite).jpeg({ quality: 95 }).toBuffer();
 
-    composite.push({
-      input: img.buffer,
-      left: pos.col * size,
-      top: pos.row * size,
-    });
-    
-  } catch (e) {
-    console.warn(`Failed validation for ${img.name}:`, e.message);
-    continue; // Skip invalid
-  }
-}
-
-
-
-    console.log(`✅ Using ${composite.length} fully validated images in ${dimensions} composite`);
-
-    if (composite.length === 0) {
-      return Response.json(
-        { error: "No valid images after final validation" },
-        { status: 500 }
-      );
-    }
-
-    // Generate final image
-    let finalImage;
-    try {
-      // Create the base canvas
-      const canvas = sharp({
-        create: {
-          width,
-          height,
-          channels: 3,
-          background: { r: 10, g: 10, b: 10 },
-        }
-      });
-
-      // Apply composite operation
-      finalImage = await canvas
-        .composite(composite)
-        .jpeg({ quality: 95 })
-        .toBuffer();
-        
-    } catch (compositeErr) {
-      console.error("Final composite failed:", compositeErr);
-      console.error("Composite array length:", composite.length);
-      console.error("Dimensions:", dimensions, "Total slots:", totalSlots);
-      console.error("Canvas size:", width, "x", height);
-      return Response.json({ error: "Failed to generate final image" }, { status: 500 });
-    }
-
-    // Convert to base64
     const base64 = finalImage.toString("base64");
-    const dataUrl = `data:image/jpeg;base64,${base64}`;
 
-    return Response.json({ 
-      image: dataUrl,
+    return Response.json({
+      image: `data:image/jpeg;base64,${base64}`,
       processedCount: composite.length,
       totalRequested: albums.length,
-      dimensions: dimensions,
+      dimensions,
       gridSize: `${cols}x${rows}`,
-      totalSlots: totalSlots
+      totalSlots
     });
-    
-  } catch (error) {
-    console.error("Collage generation error:", error);
-    return Response.json({ error: "Failed to generate collage" }, { status: 500 });
+  } catch (err) {
+    console.error("Fatal error:", err.message);
+    return Response.json({ error: "Internal server error" }, { status: 500 });
   }
 }

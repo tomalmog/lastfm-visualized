@@ -1,6 +1,6 @@
 // src/app/page.js
 "use client";
-import { Analytics } from "@vercel/analytics/next";
+
 import { useState } from "react";
 
 interface Album {
@@ -9,6 +9,36 @@ interface Album {
   coverUrl: string;
 }
 
+// Image validation function with timeout
+const validateImageUrl = (
+  url: string,
+  timeout = 5000
+): Promise<string | null> => {
+  return new Promise((resolve) => {
+    if (!url || url.trim() === "" || !url.includes("http")) {
+      resolve(null);
+      return;
+    }
+
+    const img = new Image();
+    const timer = setTimeout(() => {
+      resolve(null); // Timeout - treat as invalid
+    }, timeout);
+
+    img.onload = () => {
+      clearTimeout(timer);
+      resolve(url); // Valid image
+    };
+
+    img.onerror = () => {
+      clearTimeout(timer);
+      resolve(null); // Invalid image
+    };
+
+    img.src = url;
+  });
+};
+
 export default function Home() {
   const [user, setUser] = useState<string>("");
   const [albums, setAlbums] = useState<Album[]>([]);
@@ -16,11 +46,13 @@ export default function Home() {
   const [loading, setLoading] = useState<boolean>(false);
   const [width, setWidth] = useState<number | string>(10);
   const [height, setHeight] = useState<number | string>(10);
+  const [progress, setProgress] = useState<number>(0);
+  const [status, setStatus] = useState<string>("");
 
   const handleWidthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value === "") {
-      setWidth(""); // Allow empty string
+      setWidth("");
     } else {
       const numValue = parseInt(value, 10);
       if (!isNaN(numValue)) {
@@ -32,7 +64,7 @@ export default function Home() {
   const handleHeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value === "") {
-      setHeight(""); // Allow empty string
+      setHeight("");
     } else {
       const numValue = parseInt(value, 10);
       if (!isNaN(numValue)) {
@@ -63,6 +95,9 @@ export default function Home() {
     const dimensions = `${finalWidth}x${finalHeight}`;
 
     setLoading(true);
+    setProgress(0);
+    setStatus("Fetching albums from Last.fm...");
+
     try {
       // Fetch albums with the required count
       const res = await fetch(`/api/lastfm?user=${user}&limit=${albumCount}`);
@@ -70,21 +105,47 @@ export default function Home() {
 
       if (data.albums) {
         setAlbums(data.albums);
+        setProgress(20);
+        setStatus("Validating album cover images...");
 
-        // Now generate the collage with selected dimensions
+        // Validate images before generating collage
+        console.log("Validating album cover images...");
+        const validatedAlbums = await Promise.all(
+          data.albums.map(async (album: Album, index: number) => {
+            const validUrl = await validateImageUrl(album.coverUrl, 3000);
+            const progressPercent = Math.round(
+              20 + ((index + 1) / data.albums.length) * 50
+            );
+            setProgress(progressPercent);
+
+            return {
+              ...album,
+              coverUrl: validUrl || "/placeholder-album.png",
+            };
+          })
+        );
+
+        console.log(`Validated ${validatedAlbums.length} albums`);
+        setProgress(70);
+        setStatus("Generating collage...");
+
+        // Now generate the collage with validated albums
         const collageRes = await fetch("/api/generate-collage", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            albums: data.albums,
+            albums: validatedAlbums,
             dimensions: dimensions,
           }),
         });
 
         const collageData = await collageRes.json();
+        setProgress(90);
 
         if (collageData.image) {
           setCollage(collageData.image);
+          setProgress(100);
+          setStatus("Collage generated successfully!");
         } else {
           alert(
             "Failed to generate collage: " +
@@ -98,8 +159,13 @@ export default function Home() {
     } catch (err) {
       alert("Error: Could not connect to API.");
       console.error(err);
+      setStatus("Error occurred");
     } finally {
       setLoading(false);
+      setTimeout(() => {
+        setProgress(0);
+        setStatus("");
+      }, 2000);
     }
   };
 
@@ -173,7 +239,7 @@ export default function Home() {
               disabled={loading}
               className="bg-blue-600 text-white px-6 py-3 rounded font-medium hover:bg-blue-700 transition disabled:bg-blue-400 whitespace-nowrap"
             >
-              {loading ? "Loading..." : "Generate Collage"}
+              {loading ? "Processing..." : "Generate Collage"}
             </button>
             <p className="text-xs text-gray-500 mt-1">&nbsp;</p>
           </div>
@@ -186,15 +252,21 @@ export default function Home() {
         </p>
       </form>
 
+      {/* Loading Progress */}
       {loading && (
-        <div className="text-center">
-          <p>Fetching your top {albumCount} albums...</p>
-          <p className="text-sm text-gray-500 mt-1">
-            This may take a moment...
-          </p>
+        <div className="text-center mb-8">
+          <p className="mb-2">{status}</p>
+          <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+            <div
+              className="bg-blue-600 h-3 rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${progress}%` }}
+            ></div>
+          </div>
+          <p className="text-sm text-gray-500">{progress}% complete</p>
         </div>
       )}
 
+      {/* Default message */}
       {!loading && albums.length === 0 && (
         <p className="text-gray-500 text-center">
           Enter your Last.fm username and select your preferred dimensions to
@@ -202,6 +274,7 @@ export default function Home() {
         </p>
       )}
 
+      {/* Albums Preview */}
       {albums.length > 0 && (
         <div className="mt-6">
           <h2 className="text-xl font-semibold mb-4">
@@ -218,7 +291,9 @@ export default function Home() {
                     e: React.SyntheticEvent<HTMLImageElement, Event>
                   ) => {
                     const target = e.target as HTMLImageElement;
-                    target.style.display = "none";
+                    if (target.src !== "/placeholder-album.png") {
+                      target.src = "/placeholder-album.png";
+                    }
                   }}
                 />
                 <p
@@ -233,6 +308,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* Generated Collage */}
       {collage && (
         <div className="mt-12">
           <h2 className="text-xl font-semibold mb-4">
