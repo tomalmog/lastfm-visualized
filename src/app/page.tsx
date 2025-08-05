@@ -1,6 +1,7 @@
 // src/app/page.js
 "use client";
 
+import { Analytics } from "@vercel/analytics/next";
 import { useState } from "react";
 
 interface Album {
