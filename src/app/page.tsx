@@ -38,8 +38,8 @@ export default function LandingPage() {
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Transform your favorite albums into stunning visual collages,
-              automatically sorted by color harmony. Connect your music
-              streaming service and watch your taste come to life.
+              automatically sorted by color. Connect your music streaming
+              service and watch your taste come to life.
             </p>
           </div>
 
@@ -146,7 +146,7 @@ export default function LandingPage() {
                 <h4 className="font-semibold">Smart Color Sorting</h4>
                 <p className="text-muted-foreground text-sm">
                   Our algorithm analyzes album artwork and arranges them by
-                  color harmony and visual appeal
+                  color and visual appeal
                 </p>
               </div>
               <div className="text-center space-y-4">
