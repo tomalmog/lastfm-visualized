@@ -109,6 +109,7 @@ export default function SpotifyPage() {
 
   const exchangeCodeForToken = async (code: string) => {
     try {
+      console.log("Exchanging code for token...");
       const response = await fetch("/api/spotify/token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -116,6 +117,7 @@ export default function SpotifyPage() {
       });
 
       const data = await response.json();
+      console.log("Token exchange response:", response.status, data);
 
       if (data.access_token) {
         setAccessToken(data.access_token);
@@ -124,7 +126,7 @@ export default function SpotifyPage() {
           "spotify_token_expiry",
           (Date.now() + data.expires_in * 1000).toString()
         );
-        fetchUserProfile(data.access_token);
+        await fetchUserProfile(data.access_token);
 
         // Clean up URL
         window.history.replaceState(
@@ -132,21 +134,32 @@ export default function SpotifyPage() {
           document.title,
           window.location.pathname
         );
+      } else {
+        console.error("Failed to get access token:", data);
+        alert(`Authentication failed: ${data.error || "Unknown error"}`);
       }
     } catch (error) {
       console.error("Error exchanging code for token:", error);
+      alert("Failed to authenticate with Spotify. Please try again.");
     }
   };
 
   const fetchUserProfile = async (token: string) => {
     try {
+      console.log("Fetching user profile...");
       const response = await fetch("/api/spotify/user", {
         headers: { Authorization: `Bearer ${token}` },
       });
 
+      console.log("User profile response:", response.status);
+
       if (response.ok) {
         const userData = await response.json();
+        console.log("User data received:", userData.display_name);
         setUser(userData);
+      } else {
+        const errorData = await response.json();
+        console.error("Failed to fetch user profile:", errorData);
       }
     } catch (error) {
       console.error("Error fetching user profile:", error);
