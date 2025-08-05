@@ -2,6 +2,7 @@
 "use client";
 
 import { Analytics } from "@vercel/analytics/next";
+import { Graduate } from "next/font/google";
 import { useState } from "react";
 
 interface Album {
@@ -49,6 +50,9 @@ export default function Home() {
   const [height, setHeight] = useState<number | string>(10);
   const [progress, setProgress] = useState<number>(0);
   const [status, setStatus] = useState<string>("");
+  const [gridSize, setGridSize] = useState<string>("");
+  const [sufficientAlbums, setSufficientAlbums] = useState<boolean>(true);
+  const [finalCount, setFinalCount] = useState<number>(100);
 
   const handleWidthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -144,6 +148,9 @@ export default function Home() {
         setProgress(90);
 
         if (collageData.image) {
+          setGridSize(collageData.gridSize);
+          setSufficientAlbums(collageData.sufficientAlbums);
+          setFinalCount(collageData.finalCount);
           setCollage(collageData.image);
           setProgress(100);
           setStatus("Collage generated successfully!");
@@ -246,10 +253,17 @@ export default function Home() {
           </div>
         </div>
 
+        {!sufficientAlbums && (
+          <div>
+            <p className="text-sm text-red-600">
+              This account does not have enough albums for your requested grid
+              size
+            </p>
+          </div>
+        )}
+
         <p className="text-sm text-gray-600">
-          This will create a {width === "" ? 1 : Number(width)}×
-          {height === "" ? 1 : Number(height)} grid using your top {albumCount}{" "}
-          albums.
+          A {gridSize} grid will be made using your top {finalCount} albums.
         </p>
       </form>
 
@@ -313,8 +327,7 @@ export default function Home() {
       {collage && (
         <div className="mt-12">
           <h2 className="text-xl font-semibold mb-4">
-            Your {width === "" ? 1 : Number(width)}×
-            {height === "" ? 1 : Number(height)} Color Sorted Collage
+            Your {gridSize} Color Sorted Collage
           </h2>
           <div className="flex justify-center">
             <img

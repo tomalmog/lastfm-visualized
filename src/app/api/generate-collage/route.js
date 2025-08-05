@@ -100,41 +100,31 @@ async function fetchCoverFromMusicBrainz(albumName, artistName) {
   return null;
 }
 
-async function fetchAlbumImagesFromLastFM(artist, albumName) {
-  try {
-    const url = `https://ws.audioscrobbler.com/2.0/?method=album.getImages&artist=${encodeURIComponent(artist)}&album=${encodeURIComponent(albumName)}&api_key=${process.env.LASTFM_API_KEY}&format=json`;
-
-    const res = await axios.get(url);
-    const images = res.data?.images?.image;
-
-    if (!Array.isArray(images)) return null;
-
-    // Filter for valid urls
-    for (const img of images) {
-      const imgUrl = img?.sizes?.size?.find(s => s.size === 'large')?.['#text'] || img['#text'];
-      if (!imgUrl) continue;
-      if (imgUrl.includes('2a96cbd8b46e442fc41c2b86b821562f')) continue; // Skip placeholder
-      return imgUrl; // Return first valid image
-    }
-
-    return null;
-  } catch (err) {
-    console.warn(`Failed to fetch additional images for ${albumName}:`, err.message);
-    return null;
-  }
-}
-
-
 export async function POST(request) {
   try {
     const { albums, dimensions = "10x10" } = await request.json();
+    let sufficientAlbums = true;
 
     if (!albums || !Array.isArray(albums) || albums.length === 0) {
       return Response.json({ error: "No albums provided" }, { status: 400 });
     }
 
-    const { cols, rows } = parseDimensions(dimensions);
-    const totalSlots = cols * rows;
+    let { cols, rows } = parseDimensions(dimensions);
+    let totalSlots = cols * rows;
+
+    if (albums.length < totalSlots) {
+      // Calculate the largest possible square grid
+      const totalAlbums = albums.length;
+      const maxGridSize = Math.floor(Math.sqrt(totalAlbums));
+      //cols = Math.min(maxGridSize, parseInt(dimensions.split('x')[0], 10));
+      //rows = Math.min(maxGridSize, parseInt(dimensions.split('x')[1], 10));
+      cols = maxGridSize;
+      rows = maxGridSize;
+
+      totalSlots = cols * rows;
+      sufficientAlbums = false;
+    }
+
     const size = 100;
     const width = cols * size;
     const height = rows * size;
@@ -341,7 +331,9 @@ if (!buffer) {
       totalRequested: albums.length,
       dimensions,
       gridSize: `${cols}x${rows}`,
-      totalSlots
+      totalSlots,
+      sufficientAlbums: sufficientAlbums,
+      finalCount: totalSlots,
     });
   } catch (err) {
     console.error("Fatal error:", err.message);
