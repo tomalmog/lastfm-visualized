@@ -53,6 +53,7 @@ export default function Home() {
   const [gridSize, setGridSize] = useState<string>("");
   const [sufficientAlbums, setSufficientAlbums] = useState<boolean>(true);
   const [finalCount, setFinalCount] = useState<number>(100);
+  const [showAlbums, setShowAlbums] = useState(false);
 
   const handleWidthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -289,44 +290,10 @@ export default function Home() {
         </p>
       )}
 
-      {/* Albums Preview */}
-      {albums.length > 0 && (
-        <div className="mt-6">
-          <h2 className="text-xl font-semibold mb-4">
-            Top {albums.length} Albums for &quot;{user}&quot;
-          </h2>
-          <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3 max-h-96 overflow-y-auto border rounded p-4">
-            {albums.map((album, index) => (
-              <div key={index} className="text-center">
-                <img
-                  src={album.coverUrl || "/placeholder-album.png"}
-                  alt={`${album.name} cover`}
-                  className="w-full aspect-square object-cover rounded shadow"
-                  onError={(
-                    e: React.SyntheticEvent<HTMLImageElement, Event>
-                  ) => {
-                    const target = e.target as HTMLImageElement;
-                    if (target.src !== "/placeholder-album.png") {
-                      target.src = "/placeholder-album.png";
-                    }
-                  }}
-                />
-                <p
-                  className="text-xs mt-1 truncate"
-                  title={`${album.name} - ${album.artist}`}
-                >
-                  {album.name}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Generated Collage */}
       {collage && (
         <div className="mt-12">
-          <h2 className="text-xl font-semibold mb-4">
+          <h2 className="text-xl font-semibold mb-4 text-center">
             Your {gridSize} Color Sorted Collage
           </h2>
           <div className="flex justify-center">
