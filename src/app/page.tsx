@@ -1,323 +1,175 @@
-// src/app/page.js
-"use client";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Music, Palette, Sparkles, Users } from "lucide-react";
 
-import { Analytics } from "@vercel/analytics/next";
-import { Graduate } from "next/font/google";
-import { useState } from "react";
-
-interface Album {
-  name: string;
-  artist: string;
-  coverUrl: string;
-}
-
-// Image validation function with timeout
-const validateImageUrl = (
-  url: string,
-  timeout = 5000
-): Promise<string | null> => {
-  return new Promise((resolve) => {
-    if (!url || url.trim() === "" || !url.includes("http")) {
-      resolve(null);
-      return;
-    }
-
-    const img = new Image();
-    const timer = setTimeout(() => {
-      resolve(null); // Timeout - treat as invalid
-    }, timeout);
-
-    img.onload = () => {
-      clearTimeout(timer);
-      resolve(url); // Valid image
-    };
-
-    img.onerror = () => {
-      clearTimeout(timer);
-      resolve(null); // Invalid image
-    };
-
-    img.src = url;
-  });
-};
-
-export default function Home() {
-  const [user, setUser] = useState<string>("");
-  const [albums, setAlbums] = useState<Album[]>([]);
-  const [collage, setCollage] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [width, setWidth] = useState<number | string>(10);
-  const [height, setHeight] = useState<number | string>(10);
-  const [progress, setProgress] = useState<number>(0);
-  const [status, setStatus] = useState<string>("");
-  const [gridSize, setGridSize] = useState<string>("");
-  const [sufficientAlbums, setSufficientAlbums] = useState<boolean>(true);
-  const [finalCount, setFinalCount] = useState<number>(100);
-  const [showAlbums, setShowAlbums] = useState(false);
-
-  const handleWidthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    if (value === "") {
-      setWidth("");
-    } else {
-      const numValue = parseInt(value, 10);
-      if (!isNaN(numValue)) {
-        setWidth(numValue);
-      }
-    }
-  };
-
-  const handleHeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    if (value === "") {
-      setHeight("");
-    } else {
-      const numValue = parseInt(value, 10);
-      if (!isNaN(numValue)) {
-        setHeight(numValue);
-      }
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!user) return;
-
-    // Convert empty strings to 1 and validate
-    const finalWidth = width === "" ? 1 : Number(width);
-    const finalHeight = height === "" ? 1 : Number(height);
-
-    if (
-      finalWidth < 1 ||
-      finalWidth > 20 ||
-      finalHeight < 1 ||
-      finalHeight > 20
-    ) {
-      alert("Width and height must be between 1 and 20");
-      return;
-    }
-
-    const albumCount = finalWidth * finalHeight;
-    const dimensions = `${finalWidth}x${finalHeight}`;
-
-    setLoading(true);
-    setProgress(0);
-    setStatus("Fetching albums from Last.fm...");
-
-    try {
-      // Fetch albums with the required count
-      const res = await fetch(`/api/lastfm?user=${user}&limit=${albumCount}`);
-      const data = await res.json();
-
-      if (data.albums) {
-        setAlbums(data.albums);
-        setProgress(20);
-        setStatus("Validating album cover images...");
-
-        // Validate images before generating collage
-        console.log("Validating album cover images...");
-        const validatedAlbums = await Promise.all(
-          data.albums.map(async (album: Album, index: number) => {
-            const validUrl = await validateImageUrl(album.coverUrl, 3000);
-            const progressPercent = Math.round(
-              20 + ((index + 1) / data.albums.length) * 50
-            );
-            setProgress(progressPercent);
-
-            return {
-              ...album,
-              coverUrl: validUrl || "/placeholder-album.png",
-            };
-          })
-        );
-
-        console.log(`Validated ${validatedAlbums.length} albums`);
-        setProgress(70);
-        setStatus("Generating collage...");
-
-        // Now generate the collage with validated albums
-        const collageRes = await fetch("/api/generate-collage", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            albums: validatedAlbums,
-            dimensions: dimensions,
-          }),
-        });
-
-        const collageData = await collageRes.json();
-        setProgress(90);
-
-        if (collageData.image) {
-          setGridSize(collageData.gridSize);
-          setSufficientAlbums(collageData.sufficientAlbums);
-          setFinalCount(collageData.finalCount);
-          setCollage(collageData.image);
-          setProgress(100);
-          setStatus("Collage generated successfully!");
-        } else {
-          alert(
-            "Failed to generate collage: " +
-              (collageData.error || "Unknown error")
-          );
-        }
-      } else {
-        alert("Failed to fetch albums: " + (data.error || "Unknown error"));
-        setAlbums([]);
-      }
-    } catch (err) {
-      alert("Error: Could not connect to API.");
-      console.error(err);
-      setStatus("Error occurred");
-    } finally {
-      setLoading(false);
-      setTimeout(() => {
-        setProgress(0);
-        setStatus("");
-      }, 2000);
-    }
-  };
-
-  const albumCount =
-    (width === "" ? 1 : Number(width)) * (height === "" ? 1 : Number(height));
-
+export default function LandingPage() {
   return (
-    <main className="p-8 max-w-5xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">
-        Last.fm Album Collage Generator
-      </h1>
-
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-4 mb-8">
-        <div className="flex gap-4">
-          <input
-            type="text"
-            value={user}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setUser(e.target.value)
-            }
-            placeholder="Enter your Last.fm username"
-            className="flex-grow p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
-          <div className="flex gap-4 flex-grow">
-            <div className="flex-1">
-              <label
-                htmlFor="width"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                Width
-              </label>
-              <input
-                id="width"
-                type="number"
-                min="1"
-                max="20"
-                value={width}
-                onChange={handleWidthChange}
-                className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <p className="text-xs text-gray-500 mt-1">Max: 20</p>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50">
+      {/* Header */}
+      <header className="container mx-auto px-4 py-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-pink-600">
+              <Palette className="h-5 w-5 text-white" />
             </div>
-
-            <div className="flex-1">
-              <label
-                htmlFor="height"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                Height
-              </label>
-              <input
-                id="height"
-                type="number"
-                min="1"
-                max="20"
-                value={height}
-                onChange={handleHeightChange}
-                className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <p className="text-xs text-gray-500 mt-1">Max: 20</p>
-            </div>
-          </div>
-
-          <div className="flex-shrink-0">
-            <button
-              type="submit"
-              disabled={loading}
-              className="bg-blue-600 text-white px-6 py-3 rounded font-medium hover:bg-blue-700 transition disabled:bg-blue-400 whitespace-nowrap"
-            >
-              {loading ? "Processing..." : "Generate Collage"}
-            </button>
-            <p className="text-xs text-gray-500 mt-1">&nbsp;</p>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+              CollageFm
+            </h1>
           </div>
         </div>
+      </header>
 
-        {!sufficientAlbums && (
-          <div>
-            <p className="text-sm text-red-600">
-              This account does not have enough albums for your requested grid
-              size
+      {/* Hero Section */}
+      <main className="container mx-auto px-4 py-12">
+        <div className="text-center space-y-8">
+          <div className="space-y-4">
+            <h2 className="text-4xl md:text-6xl font-bold tracking-tight">
+              Your Music,{" "}
+              <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                Beautifully Arranged
+              </span>
+            </h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Transform your favorite albums into stunning visual collages,
+              automatically sorted by color harmony. Connect your music
+              streaming service and watch your taste come to life.
             </p>
           </div>
-        )}
 
-        <p className="text-sm text-gray-600">
-          A {gridSize} grid will be made using your top {finalCount} albums.
-        </p>
-      </form>
+          {/* Preview Images */}
+          <div className="flex justify-center gap-8 max-w-5xl mx-auto">
+            {/* Image 1 */}
+            <div className="relative w-1/2 rounded-2xl overflow-hidden shadow-2xl border bg-gradient-to-br from-gray-100 to-gray-200">
+              <img
+                src="/20x20.jpeg"
+                alt="Example album collage sorted by color"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute -top-4 -right-4 bg-white rounded-full p-3 shadow-lg"></div>
+            </div>
 
-      {/* Loading Progress */}
-      {loading && (
-        <div className="text-center mb-8">
-          <p className="mb-2">{status}</p>
-          <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
-            <div
-              className="bg-blue-600 h-3 rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${progress}%` }}
-            ></div>
+            {/* Image 2 */}
+            <div className="relative w-1/2 rounded-2xl overflow-hidden shadow-2xl border bg-gradient-to-br from-gray-100 to-gray-200">
+              <img
+                src="/example2.jpeg"
+                alt="Example album collage sorted by color"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute -top-4 -right-4 bg-white rounded-full p-3 shadow-lg"></div>
+            </div>
           </div>
-          <p className="text-sm text-gray-500">{progress}% complete</p>
+
+          {/* Service Selection */}
+          <div className="max-w-4xl mx-auto">
+            <h3 className="text-2xl font-semibold mb-8">
+              Choose Your Music Service
+            </h3>
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Spotify Option */}
+              <Card className="relative overflow-hidden border-2 hover:border-green-500 transition-colors group cursor-pointer">
+                <CardHeader className="text-center pb-4">
+                  <div className="mx-auto w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <Music className="h-8 w-8 text-white" />
+                  </div>
+                  <CardTitle className="text-2xl">Spotify</CardTitle>
+                  <CardDescription className="text-base">
+                    Connect your Spotify account to create collages from your
+                    most played albums
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="text-center">
+                  <Button
+                    asChild
+                    className="w-full bg-green-500 hover:bg-green-600 text-white"
+                  >
+                    <Link href="/spotify">Continue with Spotify</Link>
+                  </Button>
+                  <p className="text-sm text-muted-foreground mt-3">
+                    Access your listening history and top tracks
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Last.fm Option */}
+              <Card className="relative overflow-hidden border-2 hover:border-red-500 transition-colors group cursor-pointer">
+                <CardHeader className="text-center pb-4">
+                  <div className="mx-auto w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <Users className="h-8 w-8 text-white" />
+                  </div>
+                  <CardTitle className="text-2xl">Last.fm</CardTitle>
+                  <CardDescription className="text-base">
+                    Enter your Last.fm username to generate collages from your
+                    scrobbled music
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="text-center">
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="w-full border-red-500 text-red-500 hover:bg-red-500 hover:text-white bg-transparent"
+                  >
+                    <Link href="/lastfm">Continue with Last.fm</Link>
+                  </Button>
+                  <p className="text-sm text-muted-foreground mt-3">
+                    No account connection required
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          {/* Features */}
+          <div className="max-w-4xl mx-auto pt-16">
+            <h3 className="text-2xl font-semibold mb-8">How It Works</h3>
+            <div className="grid md:grid-cols-3 gap-8">
+              <div className="text-center space-y-4">
+                <div className="mx-auto w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                  <Music className="h-6 w-6 text-purple-600" />
+                </div>
+                <h4 className="font-semibold">Connect Your Music</h4>
+                <p className="text-muted-foreground text-sm">
+                  Link your Spotify account or enter your Last.fm username to
+                  access your music data
+                </p>
+              </div>
+              <div className="text-center space-y-4">
+                <div className="mx-auto w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center">
+                  <Palette className="h-6 w-6 text-pink-600" />
+                </div>
+                <h4 className="font-semibold">Smart Color Sorting</h4>
+                <p className="text-muted-foreground text-sm">
+                  Our algorithm analyzes album artwork and arranges them by
+                  color harmony and visual appeal
+                </p>
+              </div>
+              <div className="text-center space-y-4">
+                <div className="mx-auto w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                  <Sparkles className="h-6 w-6 text-yellow-600" />
+                </div>
+                <h4 className="font-semibold">Beautiful Collages</h4>
+                <p className="text-muted-foreground text-sm">
+                  Download and share your personalized music collages with
+                  friends and social media
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
-      )}
+      </main>
 
-      {/* Default message */}
-      {!loading && albums.length === 0 && (
-        <p className="text-gray-500 text-center">
-          Enter your Last.fm username and select your preferred dimensions to
-          generate your album collage.
-        </p>
-      )}
-
-      {/* Generated Collage */}
-      {collage && (
-        <div className="mt-12">
-          <h2 className="text-xl font-semibold mb-4 text-center">
-            Your {gridSize} Color Sorted Collage
-          </h2>
-          <div className="flex justify-center">
-            <img
-              src={collage}
-              alt="Album collage sorted by color"
-              className="border rounded shadow-lg max-w-full h-auto"
-              style={{ maxHeight: "80vh" }}
-            />
-          </div>
-          <div className="mt-4 text-center">
-            <a
-              href={collage}
-              download={`${user}-${width === "" ? 1 : Number(width)}x${
-                height === "" ? 1 : Number(height)
-              }-album-collage.jpg`}
-              className="inline-block bg-green-600 text-white px-6 py-2 rounded font-medium hover:bg-green-700 transition"
-            >
-              Download Collage
-            </a>
-          </div>
+      {/* Footer */}
+      <footer className="container mx-auto px-4 py-8 mt-16 border-t">
+        <div className="text-center text-muted-foreground">
+          <p>&copy; 2025 CollageFm. Transform your music into art.</p>
         </div>
-      )}
-      <Analytics />
-    </main>
+      </footer>
+    </div>
   );
 }
