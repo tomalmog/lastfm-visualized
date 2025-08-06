@@ -11,8 +11,8 @@ import { Music, Palette, Sparkles, Users } from "lucide-react";
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50">
-      {/* Header */}
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 p-4">
+      {/* Header
       <header className="container mx-auto px-4 py-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
@@ -23,6 +23,23 @@ export default function LandingPage() {
               CollageFm
             </h1>
           </div>
+        </div>
+      </header> */}
+
+      {/* Header */}
+      <header className="container mx-auto px-4 py-6 p-4">
+        <div className="flex items-center justify-between px-2">
+          <Link
+            href="/"
+            className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
+          >
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-pink-600">
+              <Palette className="h-5 w-5 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+              CollageFm
+            </h1>
+          </Link>
         </div>
       </header>
 

@@ -190,7 +190,7 @@ export default function LastFmPage() {
     (width === "" ? 1 : Number(width)) * (height === "" ? 1 : Number(height));
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 p-4">
       {/* Header */}
       <header className="container mx-auto px-4 py-6">
         <div className="flex items-center justify-between">
