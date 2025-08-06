@@ -24,6 +24,7 @@ import {
   ExternalLink,
   LogOut,
 } from "lucide-react";
+import Link from "next/link";
 
 interface SpotifyTrack {
   name: string;
@@ -279,11 +280,11 @@ export default function SpotifyPage() {
 
     if (
       finalWidth < 1 ||
-      finalWidth > 20 ||
+      finalWidth > 10 ||
       finalHeight < 1 ||
-      finalHeight > 20
+      finalHeight > 10
     ) {
-      alert("Width and height must be between 1 and 20");
+      alert("Width and height must be between 1 and 10");
       return;
     }
 
@@ -379,14 +380,17 @@ export default function SpotifyPage() {
       <header className="container mx-auto px-4 py-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-pink-600">
-              <Palette className="h-5 w-5 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-              CollageFm
-            </h1>
-          </div>
-          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-pink-600">
+                <Palette className="h-5 w-5 text-white" />
+              </div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                CollageFm
+              </h1>
+            </Link>
             <Badge
               variant="secondary"
               className="bg-green-100 text-green-700 border-green-200"
@@ -518,12 +522,12 @@ export default function SpotifyPage() {
                           id="width"
                           type="number"
                           min="1"
-                          max="20"
+                          max="10"
                           value={width}
                           onChange={handleWidthChange}
                           className="text-lg py-3"
                         />
-                        <p className="text-xs text-gray-600">Max: 20</p>
+                        <p className="text-xs text-gray-600">Max: 10</p>
                       </div>
 
                       <div className="space-y-2">
@@ -532,12 +536,12 @@ export default function SpotifyPage() {
                           id="height"
                           type="number"
                           min="1"
-                          max="20"
+                          max="10"
                           value={height}
                           onChange={handleHeightChange}
                           className="text-lg py-3"
                         />
-                        <p className="text-xs text-gray-600">Max: 20</p>
+                        <p className="text-xs text-gray-600">Max: 10</p>
                       </div>
 
                       <Button
