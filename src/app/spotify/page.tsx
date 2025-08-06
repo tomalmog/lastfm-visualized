@@ -168,7 +168,7 @@ export default function SpotifyPage() {
 
   const handleSpotifyLogin = () => {
     const clientId = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT;
-    const redirectUri = `${window.location.origin}/spotify`;
+    const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL}/spotify`;
     const scopes = "user-top-read user-read-private";
 
     const authUrl =

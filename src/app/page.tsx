@@ -1,5 +1,3 @@
-"use client";
-
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -88,22 +86,10 @@ export default function LandingPage() {
                 </CardHeader>
                 <CardContent className="text-center">
                   <Button
+                    asChild
                     className="w-full bg-green-500 hover:bg-green-600 text-white"
-                    onClick={() => {
-                      const params = new URLSearchParams({
-                        client_id: process.env.NEXT_PUBLIC_SPOTIFY_CLIENT!,
-                        response_type: "code",
-                        redirect_uri: `${process.env.NEXT_PUBLIC_BASE_URL}/spotify`,
-                        scope: [
-                          "user-top-read",
-                          "user-library-read",
-                          "user-read-recently-played",
-                        ].join(" "),
-                      });
-                      window.location.href = `https://accounts.spotify.com/authorize?${params.toString()}`;
-                    }}
                   >
-                    Continue with Spotify
+                    <Link href="/spotify">Continue with Spotify</Link>
                   </Button>
                   <p className="text-sm text-muted-foreground mt-3">
                     Access your listening history and top tracks
