@@ -1,9 +1,4 @@
-"use client";
-
-import type React from "react";
-
-import { Analytics } from "@vercel/analytics/next";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,7 +22,6 @@ import {
   ExternalLink,
   LogOut,
 } from "lucide-react";
-import Link from "next/link";
 
 interface SpotifyTrack {
   name: string;
@@ -88,28 +82,67 @@ export default function SpotifyPage() {
 
   // Check for access token in URL or localStorage on component mount
   useEffect(() => {
+    console.log("Component mounted, checking URL and localStorage...");
+
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get("code");
+    const error = urlParams.get("error");
     const storedToken = localStorage.getItem("spotify_access_token");
     const tokenExpiry = localStorage.getItem("spotify_token_expiry");
 
-    if (code && !storedToken) {
-      // Exchange code for access token
+    console.log("URL params check:", {
+      hasCode: !!code,
+      hasError: !!error,
+      code: code ? code.substring(0, 20) + "..." : "None",
+      error: error || "None",
+    });
+
+    console.log("LocalStorage check:", {
+      hasStoredToken: !!storedToken,
+      tokenExpiry: tokenExpiry
+        ? new Date(parseInt(tokenExpiry)).toLocaleString()
+        : "None",
+      isTokenValid:
+        storedToken && tokenExpiry && Date.now() < parseInt(tokenExpiry),
+    });
+
+    // Handle Spotify auth error
+    if (error) {
+      console.error("Spotify auth error:", error);
+      alert(`Spotify authentication error: ${error}`);
+      return;
+    }
+
+    // Priority 1: If we have a code, exchange it (regardless of stored token)
+    if (code) {
+      console.log("Found authorization code, exchanging for token...");
       exchangeCodeForToken(code);
-    } else if (
-      storedToken &&
-      tokenExpiry &&
-      Date.now() < Number.parseInt(tokenExpiry)
-    ) {
-      // Use stored valid token
+      return;
+    }
+
+    // Priority 2: Check if we have a valid stored token
+    if (storedToken && tokenExpiry && Date.now() < parseInt(tokenExpiry)) {
+      console.log("Using valid stored token");
       setAccessToken(storedToken);
       fetchUserProfile(storedToken);
+      return;
     }
+
+    // Priority 3: Clean up expired token
+    if (storedToken && tokenExpiry && Date.now() >= parseInt(tokenExpiry)) {
+      console.log("Stored token expired, cleaning up");
+      localStorage.removeItem("spotify_access_token");
+      localStorage.removeItem("spotify_token_expiry");
+    }
+
+    console.log("No valid authentication found, user needs to login");
   }, []);
 
   const exchangeCodeForToken = async (code: string) => {
     try {
       console.log("Exchanging code for token...");
+      setStatus("Exchanging authorization code for access token...");
+
       const response = await fetch("/api/spotify/token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -119,27 +152,36 @@ export default function SpotifyPage() {
       const data = await response.json();
       console.log("Token exchange response:", response.status, data);
 
-      if (data.access_token) {
+      if (response.ok && data.access_token) {
+        console.log("✅ Token exchange successful");
         setAccessToken(data.access_token);
         localStorage.setItem("spotify_access_token", data.access_token);
         localStorage.setItem(
           "spotify_token_expiry",
           (Date.now() + data.expires_in * 1000).toString()
         );
-        await fetchUserProfile(data.access_token);
 
-        // Clean up URL
+        // Clean up URL immediately
         window.history.replaceState(
           {},
           document.title,
           window.location.pathname
         );
+
+        await fetchUserProfile(data.access_token);
+        setStatus("");
       } else {
-        console.error("Failed to get access token:", data);
-        alert(`Authentication failed: ${data.error || "Unknown error"}`);
+        console.error("❌ Failed to get access token:", data);
+        setStatus("");
+        alert(
+          `Authentication failed: ${
+            data.error || data.error_description || "Unknown error"
+          }`
+        );
       }
     } catch (error) {
-      console.error("Error exchanging code for token:", error);
+      console.error("❌ Error exchanging code for token:", error);
+      setStatus("");
       alert("Failed to authenticate with Spotify. Please try again.");
     }
   };
@@ -147,6 +189,8 @@ export default function SpotifyPage() {
   const fetchUserProfile = async (token: string) => {
     try {
       console.log("Fetching user profile...");
+      setStatus("Fetching user profile...");
+
       const response = await fetch("/api/spotify/user", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -155,21 +199,41 @@ export default function SpotifyPage() {
 
       if (response.ok) {
         const userData = await response.json();
-        console.log("User data received:", userData.display_name);
+        console.log("✅ User data received:", userData.display_name);
         setUser(userData);
+        setStatus("");
       } else {
         const errorData = await response.json();
-        console.error("Failed to fetch user profile:", errorData);
+        console.error("❌ Failed to fetch user profile:", errorData);
+        setStatus("");
       }
     } catch (error) {
-      console.error("Error fetching user profile:", error);
+      console.error("❌ Error fetching user profile:", error);
+      setStatus("");
     }
   };
 
   const handleSpotifyLogin = () => {
-    const clientId = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT;
-    const redirectUri = `${window.location.origin.replace(/\/$/, "")}/spotify`;
+    console.log("Starting Spotify login...");
+
+    // Replace with your actual Spotify Client ID
+    const clientId = "YOUR_SPOTIFY_CLIENT_ID_HERE";
+    console.log(
+      "Client ID check:",
+      clientId !== "YOUR_SPOTIFY_CLIENT_ID_HERE" ? "✓ Present" : "❌ Missing"
+    );
+
+    if (clientId === "YOUR_SPOTIFY_CLIENT_ID_HERE") {
+      alert(
+        "Please replace YOUR_SPOTIFY_CLIENT_ID_HERE with your actual Spotify Client ID"
+      );
+      return;
+    }
+
+    const redirectUri = `${window.location.origin}/spotify`;
     const scopes = "user-top-read user-read-private";
+
+    console.log("Auth URL params:", { clientId, redirectUri, scopes });
 
     const authUrl =
       `https://accounts.spotify.com/authorize?` +
@@ -178,10 +242,12 @@ export default function SpotifyPage() {
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `scope=${encodeURIComponent(scopes)}`;
 
+    console.log("Redirecting to:", authUrl);
     window.location.href = authUrl;
   };
 
   const handleLogout = () => {
+    console.log("Logging out...");
     localStorage.removeItem("spotify_access_token");
     localStorage.removeItem("spotify_token_expiry");
     setAccessToken(null);
@@ -318,21 +384,18 @@ export default function SpotifyPage() {
     (width === "" ? 1 : Number(width)) * (height === "" ? 1 : Number(height));
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 p-4">
       {/* Header */}
       <header className="container mx-auto px-4 py-6">
         <div className="flex items-center justify-between">
-          <Link
-            href="/"
-            className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
-          >
+          <div className="flex items-center space-x-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-pink-600">
               <Palette className="h-5 w-5 text-white" />
             </div>
             <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
               CollageFm
             </h1>
-          </Link>
+          </div>
           <div className="flex items-center gap-3">
             <Badge
               variant="secondary"
@@ -356,11 +419,23 @@ export default function SpotifyPage() {
           {/* Page Title */}
           <div className="text-center space-y-2">
             <h2 className="text-3xl font-bold">Create Your Spotify Collage</h2>
-            <p className="text-muted-foreground">
+            <p className="text-gray-600">
               Connect your Spotify account to generate a beautiful color-sorted
               album collage from your top tracks
             </p>
           </div>
+
+          {/* Status Display */}
+          {status && (
+            <Card className="shadow-lg border-0 bg-blue-50/80 backdrop-blur">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-center gap-2">
+                  <div className="h-4 w-4 rounded-full bg-blue-500 animate-pulse" />
+                  <span className="text-blue-700 font-medium">{status}</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Authentication */}
           {!accessToken ? (
@@ -410,7 +485,7 @@ export default function SpotifyPage() {
                         <p className="font-semibold">
                           Connected as {user.display_name}
                         </p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-gray-600">
                           Ready to generate your collage
                         </p>
                       </div>
@@ -431,7 +506,7 @@ export default function SpotifyPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <form onSubmit={handleSubmit} className="space-y-6">
+                  <div className="space-y-6">
                     <div className="space-y-2">
                       <Label htmlFor="timeRange">Time Period</Label>
                       <select
@@ -458,7 +533,7 @@ export default function SpotifyPage() {
                           onChange={handleWidthChange}
                           className="text-lg py-3"
                         />
-                        <p className="text-xs text-muted-foreground">Max: 20</p>
+                        <p className="text-xs text-gray-600">Max: 20</p>
                       </div>
 
                       <div className="space-y-2">
@@ -472,11 +547,14 @@ export default function SpotifyPage() {
                           onChange={handleHeightChange}
                           className="text-lg py-3"
                         />
-                        <p className="text-xs text-muted-foreground">Max: 20</p>
+                        <p className="text-xs text-gray-600">Max: 20</p>
                       </div>
 
                       <Button
-                        type="submit"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleSubmit(e as any);
+                        }}
                         disabled={loading}
                         className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white py-3 text-lg"
                       >
@@ -512,7 +590,7 @@ export default function SpotifyPage() {
                         {trackCount} track{trackCount !== 1 ? "s" : ""} needed
                       </Badge>
                     </div>
-                  </form>
+                  </div>
                 </CardContent>
               </Card>
             </>
@@ -525,7 +603,7 @@ export default function SpotifyPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{status}</span>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm text-gray-600">
                       {progress}% complete
                     </span>
                   </div>
@@ -539,8 +617,8 @@ export default function SpotifyPage() {
           {!loading && tracks.length === 0 && accessToken && (
             <Card className="shadow-lg border-0 bg-white/80 backdrop-blur">
               <CardContent className="pt-6 text-center py-12">
-                <Music className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground text-lg">
+                <Music className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <p className="text-gray-600 text-lg">
                   Select your preferred dimensions and time period to generate
                   your Spotify collage.
                 </p>
@@ -577,7 +655,7 @@ export default function SpotifyPage() {
                         />
                       </div>
                       <p
-                        className="text-xs mt-1 truncate text-muted-foreground"
+                        className="text-xs mt-1 truncate text-gray-600"
                         title={`${track.name} - ${track.artist}`}
                       >
                         {track.album}
@@ -635,8 +713,6 @@ export default function SpotifyPage() {
           )}
         </div>
       </main>
-
-      <Analytics />
     </div>
   );
 }
