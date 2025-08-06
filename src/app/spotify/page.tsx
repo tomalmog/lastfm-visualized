@@ -218,19 +218,7 @@ export default function SpotifyPage() {
   const handleSpotifyLogin = () => {
     console.log("Starting Spotify login...");
 
-    // Replace with your actual Spotify Client ID
-    const clientId = "YOUR_SPOTIFY_CLIENT_ID_HERE";
-    console.log(
-      "Client ID check:",
-      clientId !== "YOUR_SPOTIFY_CLIENT_ID_HERE" ? "✓ Present" : "❌ Missing"
-    );
-
-    if (clientId === "YOUR_SPOTIFY_CLIENT_ID_HERE") {
-      alert(
-        "Please replace YOUR_SPOTIFY_CLIENT_ID_HERE with your actual Spotify Client ID"
-      );
-      return;
-    }
+    const clientId = "38c11be9caab4721bc1f34f7a4c47f92";
 
     const redirectUri = `${window.location.origin}/spotify`;
     const scopes = "user-top-read user-read-private";
