@@ -4,7 +4,7 @@ export async function GET(request: NextRequest) {
   try {
     const authorization = request.headers.get("authorization")
     const { searchParams } = new URL(request.url)
-    const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 50) // Spotify max is 50
+    const limit = Math.min(parseInt(searchParams.get("limit") || "100"), 100) // Spotify max is 100
     const timeRange = searchParams.get("time_range") || "medium_term"
 
     if (!authorization) {
