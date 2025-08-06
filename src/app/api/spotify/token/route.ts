@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
         Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
       },
       body: new URLSearchParams({
-        grant_type: "client_credentials",
+        grant_type: "authorization_code", // Changed from "client_credentials"
         code,
         redirect_uri: redirectUri,
       }),
@@ -39,7 +39,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(data)
     } else {
       console.error("Token exchange failed:", data)
-      return NextResponse.json({ error: data.error_description || "Failed to get access token" }, { status: 400 })
+      return NextResponse.json({ 
+        error: data.error_description || data.error || "Failed to get access token",
+        details: data 
+      }, { status: 400 })
     }
   } catch (error) {
     console.error("Token exchange error:", error)
