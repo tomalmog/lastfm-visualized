@@ -35,7 +35,7 @@ interface Album {
 // Image validation function with timeout
 const validateImageUrl = (
   url: string,
-  timeout = 5000
+  timeout = 12000
 ): Promise<string | null> => {
   return new Promise((resolve) => {
     if (!url || url.trim() === "" || !url.includes("http")) {
